@@ -14,11 +14,11 @@
             "name": "consul",
             "source": {
                 "git": {
-                    "remote": "https://github.com/gouthamve/public",
+                    "remote": "https://github.com/grafana/jsonnet-libs",
                     "subdir": "consul"
                 }
             },
-            "version": "consul"
+            "version": "master"
         }
     ]
 }
