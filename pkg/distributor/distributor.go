@@ -25,6 +25,11 @@ var (
 		Help:      "Time spent sending a sample batch to multiple replicated ingesters.",
 		Buckets:   []float64{.001, .0025, .005, .01, .025, .05, .1, .25, .5, 1},
 	}, []string{"method", "status_code"})
+	ingesterEntries = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "loki",
+		Name:      "distributor_ingester_entries",
+		Help:      "The number of batch entries sent to ingesters.",
+	}, []string{"ingester"})
 	ingesterAppends = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "loki",
 		Name:      "distributor_ingester_appends_total",
@@ -39,6 +44,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(sendDuration)
+	prometheus.MustRegister(ingesterEntries)
 	prometheus.MustRegister(ingesterAppends)
 	prometheus.MustRegister(ingesterAppendFailures)
 }
@@ -186,6 +192,7 @@ func (d *Distributor) sendSamples(ctx context.Context, ingester ring.IngesterDes
 
 // TODO taken from Cortex, see if we can refactor out an usable interface.
 func (d *Distributor) sendSamplesErr(ctx context.Context, ingester ring.IngesterDesc, streams []*streamTracker) error {
+	var entriesCount int
 	c, err := d.pool.GetClientFor(ingester.Addr)
 	if err != nil {
 		return err
@@ -196,7 +203,10 @@ func (d *Distributor) sendSamplesErr(ctx context.Context, ingester ring.Ingester
 	}
 	for i, s := range streams {
 		req.Streams[i] = s.stream
+		entriesCount += len(s.stream.Entries)
+		ingesterEntries.WithLabelValues(ingester.Addr).Set(float64(entriesCount))
 	}
+	entriesCount = 0
 
 	_, err = c.(logproto.PusherClient).Push(ctx, req)
 	ingesterAppends.WithLabelValues(ingester.Addr).Inc()
